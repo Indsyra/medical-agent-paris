@@ -83,7 +83,10 @@ def verify_soap(state: MedicalState):
     """
 
     response = llm.invoke(prompt_verify).content.strip()
-    return {"verification_ok": response == "OK"}
+    if response == "OK":
+        return {"verification_ok": True}
+    else:
+        return {"verification_ok": False, "soap_summary": soap + "\n\n⚠️ Compte-rendu incomplet - À compléter par le médecin"}
 
 
 graph = StateGraph(MedicalState)
@@ -114,4 +117,5 @@ result = agent.invoke({
 
 print(json.dumps(result["entities"], indent=2, ensure_ascii=False))
 print(result["soap_summary"])
-print("Vérification SOAP:", "OK" if result["verification_ok"] else "NOT OK")
+print("Vérification SOAP:", "OK" if result["verification_ok"] else "Incomplet")
+
