@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-api_key = os.getenv("OPEN_API_KEY")
+api_key = os.getenv("OPENAI_API_KEY")
 
 
 class MedicalState(TypedDict):
@@ -102,20 +102,20 @@ graph.add_edge("verify_soap", END)
 
 agent = graph.compile()
 
-consultation = """
-Jean Dupont, 45 ans. Douleur thoracique ce matin.
-Pas d'antécédents cardiaques. Fièvre 38.2°C, tension normale.
-ECG en urgence prescrit. Ibuprofène 400mg.
-"""
+if __name__ == "__main__":
+    consultation = """
+    Jean Dupont, 45 ans. Douleur thoracique ce matin.
+    Pas d'antécédents cardiaques. Fièvre 38.2°C, tension normale.
+    ECG en urgence prescrit. Ibuprofène 400mg.
+    """
 
-result = agent.invoke({
-    "raw_text": consultation,
-    "entities": {},
-    "soap_summary": "",
-    "verification_ok": False
-})
+    result = agent.invoke({
+        "raw_text": consultation,
+        "entities": {},
+        "soap_summary": "",
+        "verification_ok": False
+    })
 
-print(json.dumps(result["entities"], indent=2, ensure_ascii=False))
-print(result["soap_summary"])
-print("Vérification SOAP:", "OK" if result["verification_ok"] else "Incomplet")
-
+    print(json.dumps(result["entities"], indent=2, ensure_ascii=False))
+    print(result["soap_summary"])
+    print("Vérification SOAP:", "OK" if result["verification_ok"] else "Incomplet")
