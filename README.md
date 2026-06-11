@@ -30,7 +30,7 @@ source .venv/bin/activate
 ```
 
 ### Configuration
-In `.env`, fill API keys :
+Copy `.env_example` in `.env`, then fill API keys :
 ```bash
 cp .env.example .env
 ```
