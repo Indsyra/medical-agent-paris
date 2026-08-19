@@ -1,69 +1,115 @@
 # Medical Agent Paris
-Medical Agent Paris est un agent qui permet de fournir un résumé SOAP sur la base des notes de consultation d'un médecin.
+
+Medical Agent Paris is an AI-powered agent that generates structured SOAP summaries
+from medical consultation notes, helping clinicians save time on documentation.
 
 ## Architecture
-L'agent est constitué de 3 noeuds : extract_entities, SOAP et verify_soap. 
-Le noeud "extract_entities" sert à prélever du texte de la consultation, les informations utiles à la génération du résumé. 
-Un edge conditionnel relie "extract_entities" au noeud "SOAP" pour que l'agent puisse revenir au premier noeud en cas d'échec.
-Le noeud "SOAP" génère un résumé SOAP à partir des informations issues de "extract_entities".
-Le noeud "verify_soap" vérifie que toutes les parties de la sortie du noeud SOAP sont bien présentes et conformes à ce qu'est un résumé SOAP.
 
-extract_entities → (edge conditionnel) → structure_soap → verify_soap → END
-        ↑_________________________________________|
-                    (si extraction échoue)
-## Stack technique
+The agent is built with LangGraph and consists of 3 nodes:
+
+- **extract_entities** — extracts key medical information from the consultation
+  text (symptoms, history, medications, exams) as structured JSON
+- **structure_soap** — generates a SOAP summary from the extracted entities
+- **verify_soap** — verifies that all 4 SOAP sections are present and complete
+
+A conditional edge between `extract_entities` and `structure_soap` ensures the
+agent retries extraction if the output is incomplete.
+
+```
+extract_entities → (conditional edge) → structure_soap → verify_soap → END
+        ↑______________________________________________|
+                      (if extraction fails)
+```
+
+## Tech Stack
+
 - Python 3.11+
 - OpenAI API (gpt-4o-mini)
 - LangChain
 - LangGraph
 - FastAPI
+- Docker
+- Google Cloud Run
 
 ## Installation
+
 ### Prerequisites
+
 - Python 3.11+
-- [uv](https://github.com/astral-sh/uv) installé
-  
-### Dependencies installation
+- [uv](https://github.com/astral-sh/uv)
+- Docker
+
+### Install dependencies
+
 ```bash
 uv sync
-source .venv/bin/activate
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv\Scripts\activate  # Windows
 ```
 
-### Configuration
-Copy `.env_example` in `.env`, then fill API keys :
+### Configure environment
+
 ```bash
 cp .env.example .env
 ```
 
-### Launch
+Then fill in your API keys in `.env`:
+
+```
+OPENAI_API_KEY=your_openai_key_here
+```
+
+### Run locally
+
 ```bash
 uvicorn src.api:app --reload
 ```
 
-Open http://127.0.0.1:8000/docs to test API interactively.
+Open http://127.0.0.1:8000/docs to test the API interactively.
+
+### Run with Docker
+
+```bash
+docker build -t medical-agent-paris .
+docker run -p 8000:8000 --env-file .env medical-agent-paris
+```
 
 ## Usage Example
 
 ### Request
-Send a POST request to `/summarize` with the following body:
+
+```bash
+POST /summarize
+Content-Type: application/json
+```
 
 ```json
 {
-  "text": "Jean Dupont, 45 ans. Douleur thoracique ce matin. Pas d'antécédents cardiaques. Fièvre 38.2°C, tension normale. ECG en urgence prescrit. Ibuprofène 400mg."
+  "text": "Jean Dupont, 45 years old. Chest pain since this morning. No cardiac history. Slight fever at 38.2°C, normal blood pressure. Emergency ECG prescribed. Ibuprofen 400mg."
 }
 ```
 
 ### Response
+
 ```json
 {
-  "soap_summary": "**S - Subjectif :**\nLe patient se plaint de douleurs thoraciques et présente une fièvre à 38.2°C. Aucun antécédent cardiaque notable.\n\n**O - Objectif :**\nTempérature 38.2°C, tension normale. ECG prescrit en urgence.\n\n**A - Analyse :**\nDouleur thoracique aiguë à investiguer, origine cardiaque à écarter.\n\n**P - Plan :**\nECG en urgence. Ibuprofène 400mg 3x/jour. Suivi dans 1 semaine.",
+  "soap_summary": "**S - Subjective:**\nPatient reports chest pain since this morning with slight fever (38.2°C). No known cardiac history.\n\n**O - Objective:**\nTemperature 38.2°C, normal blood pressure. Emergency ECG prescribed.\n\n**A - Assessment:**\nAcute chest pain to investigate. Cardiac origin to be ruled out.\n\n**P - Plan:**\nEmergency ECG. Ibuprofen 400mg 3x/day for 5 days. Follow-up in 1 week.",
   "verification_ok": true
 }
 ```
 
 ## Roadmap
 
-- [ ] Audio transcription support (Whisper API) — convert recorded consultations to text automatically
-- [ ] GDPR / HDS compliance — pseudonymization of patient data before API calls
+- [x] LangGraph agent with 3 nodes (extraction, SOAP, verification)
+- [x] FastAPI endpoint with auto-generated documentation
+- [x] Docker containerization
+- [ ] Cloud Run deployment — public URL
+- [ ] Audio transcription (Whisper API) — convert recorded consultations to text
+- [ ] GDPR / HDS compliance — patient data pseudonymization before API calls
 - [ ] Multi-patient memory — persistent context across consultations using ChromaDB
-- [ ] Docker deployment — containerized app ready for Google Cloud Run
+- [ ] LangSmith monitoring — real-time agent observability
+
+## License
+
+MIT

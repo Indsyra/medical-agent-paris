@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from medical_react_agent import agent
+from src.agent import agent
 
 class ConsultationRequest(BaseModel):
     text: str
