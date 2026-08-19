@@ -3,6 +3,8 @@
 Medical Agent Paris is an AI-powered agent that generates structured SOAP summaries
 from medical consultation notes, helping clinicians save time on documentation.
 
+🌐 **Live demo:** https://medical-agent-paris-756908488363.europe-west1.run.app/docs
+
 ## Architecture
 
 The agent is built with LangGraph and consists of 3 nodes:
@@ -29,7 +31,7 @@ extract_entities → (conditional edge) → structure_soap → verify_soap → E
 - LangGraph
 - FastAPI
 - Docker
-- Google Cloud Run
+- Google Cloud Run (europe-west1)
 
 ## Installation
 
@@ -38,6 +40,7 @@ extract_entities → (conditional edge) → structure_soap → verify_soap → E
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv)
 - Docker
+- Google Cloud CLI (`gcloud`)
 
 ### Install dependencies
 
@@ -75,6 +78,61 @@ docker build -t medical-agent-paris .
 docker run -p 8000:8000 --env-file .env medical-agent-paris
 ```
 
+Open http://localhost:8000/docs to test the API interactively.
+
+## Deployment (Google Cloud Run)
+
+### Prerequisites
+
+- Google Cloud account with billing enabled
+- Google Cloud CLI installed and authenticated
+- Docker installed
+
+### Step 1 — Authenticate
+
+```bash
+gcloud auth login
+gcloud config set project medical-agent-paris
+```
+
+### Step 2 — Enable required services
+
+```bash
+gcloud services enable run.googleapis.com containerregistry.googleapis.com
+```
+
+### Step 3 — Configure Docker for GCR
+
+```bash
+gcloud auth configure-docker
+```
+
+### Step 4 — Build and push the image
+
+```bash
+docker build -t gcr.io/medical-agent-paris/medical-agent-paris .
+docker push gcr.io/medical-agent-paris/medical-agent-paris
+```
+
+### Step 5 — Deploy to Cloud Run
+
+```bash
+gcloud run deploy medical-agent-paris \
+  --image gcr.io/medical-agent-paris/medical-agent-paris \
+  --platform managed \
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --set-env-vars OPENAI_API_KEY=your_openai_key_here
+```
+
+### Step 6 — Test the live API
+
+Open the URL returned by Cloud Run and append `/docs`:
+
+```
+https://your-service-url.run.app/docs
+```
+
 ## Usage Example
 
 ### Request
@@ -104,7 +162,7 @@ Content-Type: application/json
 - [x] LangGraph agent with 3 nodes (extraction, SOAP, verification)
 - [x] FastAPI endpoint with auto-generated documentation
 - [x] Docker containerization
-- [ ] Cloud Run deployment — public URL
+- [x] Google Cloud Run deployment — public URL live
 - [ ] Audio transcription (Whisper API) — convert recorded consultations to text
 - [ ] GDPR / HDS compliance — patient data pseudonymization before API calls
 - [ ] Multi-patient memory — persistent context across consultations using ChromaDB
