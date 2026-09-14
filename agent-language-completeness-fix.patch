@@ -1,0 +1,70 @@
+diff --git a/src/agent.py b/src/agent.py
+index f7dd8df..07f4227 100644
+--- a/src/agent.py
++++ b/src/agent.py
+@@ -22,6 +22,14 @@ llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key)
+ def extract_entities(state: MedicalState):
+     prompt = f"""Extrais les informations médicales de ce texte en JSON.
+ Réponds UNIQUEMENT en JSON, sans texte avant ni après.
++N'invente aucune valeur : si une information n'est pas présente dans le texte,
++laisse le champ vide ("" ou []). Ne déduis jamais un chiffre approximatif.
++NE TRADUIS JAMAIS les valeurs extraites : conserve exactement la langue du
++texte source pour tous les champs texte (symptômes, antécédents, etc.). Seules
++les clés JSON restent en français.
++Remplis TOUS les sous-champs de "signes_vitaux" qui sont mentionnés dans le
++texte, même s'ils sont donnés dans la même phrase ou séparés par des virgules
++(ex : tension ET fréquence cardiaque ET saturation ET température, si présentes).
+ 
+ Format attendu :
+ {{
+@@ -29,6 +37,12 @@ Format attendu :
+   "age": "",
+   "symptomes": [],
+   "antecedents": [],
++  "signes_vitaux": {{
++    "tension": "",
++    "frequence_cardiaque": "",
++    "temperature": "",
++    "saturation_oxygene": ""
++  }},
+   "medicaments": [],
+   "examens": []
+ }}
+@@ -54,13 +68,34 @@ def check_extraction(state: MedicalState):
+ 
+ def structure_soap(state: MedicalState):
+     entities = state["entities"]
++    raw_text = state["raw_text"]
+     prompt_soap = f"""
+-    Tu es un assistant médical. 
+-    Rédige un compte-rendu en format SOAP (Subjectif, Objectif, Analyse, Plan) en français
+-    à partir de ces informations:
++    Tu es un assistant médical.
++    Rédige un compte-rendu en format SOAP (Subjectif, Objectif, Analyse, Plan)
++    à partir de ces informations structurées :
+ 
+     {json.dumps(entities, ensure_ascii=False, indent=2)}
+ 
++    Texte source original (référence de langue UNIQUEMENT — ne recopie jamais
++    ce texte, utilise seulement les informations structurées ci-dessus comme
++    source des faits) :
++    {raw_text}
++
++    Règles strictes :
++    - Rédige TOUJOURS dans la même langue que le texte source original ci-dessus.
++      Si cette langue n'est ni le français ni l'anglais, rédige en anglais.
++    - Réponds UNIQUEMENT avec le compte-rendu SOAP, sans préambule ni commentaire.
++    - N'inclus jamais de texte brut, de JSON, de guillemets ou d'accolades dans la sortie.
++    - Reformule toujours avec tes propres mots, ne recopie pas les champs tels quels.
++    - N'invente et ne modifie AUCUNE valeur numérique (tension, fréquence
++      cardiaque, température, saturation, dosages). Utilise exactement les
++      chiffres fournis ci-dessus, rien d'autre.
++    - Reprends TOUS les signes vitaux renseignés dans "signes_vitaux" (tension,
++      fréquence cardiaque, température, saturation) — n'en omets aucun s'il
++      est renseigné.
++    - Si une donnée n'est pas renseignée dans les informations structurées,
++      écris "non renseigné" (ou "not provided" en anglais) plutôt que de l'inventer.
++
+     Le compte-rendu doit être clair, structuré et concis.
+     S - Subjectif : les symptômes et plaintes du patient.
+     O - Objectif : les signes cliniques, examens et résultats.

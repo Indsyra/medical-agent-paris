@@ -29,6 +29,12 @@ Format attendu :
   "age": "",
   "symptomes": [],
   "antecedents": [],
+  "signes_vitaux": {{
+    "tension": "",
+    "frequence_cardiaque": "",
+    "temperature": "",
+    "saturation_oxygene": ""
+  }} ,
   "medicaments": [],
   "examens": []
 }}
@@ -55,11 +61,23 @@ def check_extraction(state: MedicalState):
 def structure_soap(state: MedicalState):
     entities = state["entities"]
     prompt_soap = f"""
-    Tu es un assistant médical. 
-    Rédige un compte-rendu en format SOAP (Subjectif, Objectif, Analyse, Plan) en français
-    à partir de ces informations:
+    Tu es un assistant médical.
+    Rédige un compte-rendu en format SOAP (Subjectif, Objectif, Analyse, Plan)
+    à partir de ces informations structurées :
 
     {json.dumps(entities, ensure_ascii=False, indent=2)}
+
+    Règles strictes :
+    - Utilise toujours la langue du texte source du patient. Si elle n'est ni
+      le français ni l'anglais, rédige en anglais.
+    - Réponds UNIQUEMENT avec le compte-rendu SOAP, sans préambule ni commentaire.
+    - N'inclus jamais de texte brut, de JSON, de guillemets ou d'accolades dans la sortie.
+    - Reformule toujours avec tes propres mots, ne recopie pas les champs tels quels.
+    - N'invente et ne modifie AUCUNE valeur numérique (tension, fréquence
+      cardiaque, température, saturation, dosages). Utilise exactement les
+      chiffres fournis ci-dessus, rien d'autre.
+    - Si une donnée n'est pas renseignée dans les informations structurées,
+      écris "non renseigné" (ou "not provided" en anglais) plutôt que de l'inventer.
 
     Le compte-rendu doit être clair, structuré et concis.
     S - Subjectif : les symptômes et plaintes du patient.
