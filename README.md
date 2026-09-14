@@ -159,14 +159,22 @@ Content-Type: application/json
 
 ## Roadmap
 
-- [x] LangGraph agent with 3 nodes (extraction, SOAP, verification)
-- [x] FastAPI endpoint with auto-generated documentation
-- [x] Docker containerization
-- [x] Google Cloud Run deployment — public URL live
-- [ ] Audio transcription (Whisper API) — convert recorded consultations to text
-- [ ] GDPR / HDS compliance — patient data pseudonymization before API calls
-- [ ] Multi-patient memory — persistent context across consultations using ChromaDB
-- [ ] LangSmith monitoring — real-time agent observability
+10 User Stories organized into 5 epics. Full details in
+[`docs/USER_STORIES.md`](docs/USER_STORIES.md); Mermaid diagrams in
+[`docs/roadmap/`](docs/roadmap/) (chronological view and by-epic view).
+
+| Epic | User Stories | Status |
+|---|---|---|
+| **A — Agent Core** | US-01 LangGraph agent (3 nodes) | ✅ Done |
+| **B — API & Deployment** | US-02 FastAPI endpoint · US-03 Docker + Cloud Run | ✅ Done |
+| **C — Data Engineering** | US-08 Supabase logging · US-09 PySpark metrics dashboard · US-10 Airflow batch orchestration | ✅ US-08 · 🔲 US-09, US-10 |
+| **D — Observability & Compliance** | US-04 LangSmith monitoring · US-05 GDPR pseudonymization | 🚧 US-04 blocked · 🔲 US-05 |
+| **E — Patient Experience** | US-06 ChromaDB multi-patient memory · US-07 Whisper audio transcription | 🔲 Todo |
+
+Epic C (Data Engineering) is the current priority: US-10 adds an Airflow DAG
+to orchestrate the nightly batch pipeline, and US-09 introduces PySpark for
+metrics computation at scale — moving the project from "personal project" to
+a hospital-scale demonstrator.
 
 ## License
 

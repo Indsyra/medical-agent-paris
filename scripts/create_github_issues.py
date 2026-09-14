@@ -54,7 +54,7 @@ afin d'**obtenir automatiquement un résumé SOAP structuré**.
 
 ## Estimation
 - [x] L (> 6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-a-agent-core"],
         "state": "closed"
     },
     {
@@ -77,7 +77,7 @@ afin d'**intégrer l'agent dans n'importe quelle application médicale**.
 
 ## Estimation
 - [x] S (1-3h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-b-api-deployment"],
         "state": "closed"
     },
     {
@@ -100,7 +100,7 @@ afin qu'**il soit accessible depuis n'importe quelle application**.
 
 ## Estimation
 - [x] M (3-6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-b-api-deployment"],
         "state": "closed"
     },
     {
@@ -122,7 +122,7 @@ afin de **conserver un historique exploitable**.
 
 ## Estimation
 - [x] S (1-3h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-c-data-engineering"],
         "state": "closed"
     },
     # ── OPEN ───────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ afin de **déboguer et optimiser les performances**.
 
 ## Estimation
 - [ ] S (1-3h)""",
-        "labels": ["enhancement", "blocked"],
+        "labels": ["enhancement", "blocked", "epic-d-observability-compliance"],
         "state": "open"
     },
     {
@@ -169,7 +169,7 @@ afin d'**être conforme RGPD et HDS**.
 
 ## Estimation
 - [ ] M (3-6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-d-observability-compliance"],
         "state": "open"
     },
     {
@@ -192,7 +192,7 @@ afin de **contextualiser le nouveau résumé avec ses antécédents**.
 
 ## Estimation
 - [ ] L (> 6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-e-patient-experience"],
         "state": "open"
     },
     {
@@ -215,7 +215,7 @@ afin d'**obtenir un résumé SOAP sans avoir à taper le texte**.
 
 ## Estimation
 - [ ] L (> 6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-e-patient-experience"],
         "state": "open"
     },
     {
@@ -232,13 +232,16 @@ afin de **monitorer la qualité des résumés produits**.
 - [ ] Dashboard accessible sur `/metrics`
 
 ## Notes techniques
-- Requêtes SQL sur table consultations (Supabase)
+- Requêtes SQL sur table consultations (Supabase) pour les petits volumes
+- PySpark pour le calcul des métriques dès que le volume dépasse ce que
+  pandas encaisse confortablement (JDBC vers PostgreSQL, DataFrame API,
+  groupBy/agg) — objectif : montée en compétence Data Engineering
 - Nouveau endpoint GET /metrics dans src/api.py
 - Visualisation avec Chart.js ou simple JSON
 
 ## Estimation
 - [ ] M (3-6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-c-data-engineering"],
         "state": "open"
     },
     {
@@ -253,15 +256,20 @@ afin d'**obtenir tous les résumés SOAP en une seule fois**.
 - [ ] Traite chaque ligne comme une consultation
 - [ ] Retourne un CSV avec les SOAP générés
 - [ ] Gère les erreurs ligne par ligne sans bloquer le batch
+- [ ] Un DAG Airflow orchestre le traitement batch automatiquement (ex.
+      tous les soirs à minuit) au lieu d'un déclenchement manuel
 
 ## Notes techniques
 - FastAPI UploadFile pour reception du CSV
 - pandas pour lecture et écriture CSV
 - Logging de chaque ligne dans Supabase
+- Apache Airflow : DAG (`dags/batch_consultations_dag.py`) qui appelle
+  `/batch` sur un scheduler quotidien — objectif : montée en compétence
+  Data Engineering (orchestration, scheduling, retries)
 
 ## Estimation
 - [ ] M (3-6h)""",
-        "labels": ["enhancement"],
+        "labels": ["enhancement", "epic-c-data-engineering"],
         "state": "open"
     }
 ]
@@ -316,6 +324,11 @@ def main() -> None:
     print("Creating labels...")
     create_label("enhancement", "a2eeef")
     create_label("blocked", "d93f0b")
+    create_label("epic-a-agent-core", "5319e7")
+    create_label("epic-b-api-deployment", "0e8a16")
+    create_label("epic-c-data-engineering", "fbca04")
+    create_label("epic-d-observability-compliance", "1d76db")
+    create_label("epic-e-patient-experience", "c5def5")
     print()
 
     # Create issues

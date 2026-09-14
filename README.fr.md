@@ -63,7 +63,18 @@ Send a POST request to `/summarize` with the following body:
 
 ## Roadmap
 
-- [ ] Audio transcription support (Whisper API) — convert recorded consultations to text automatically
-- [ ] GDPR / HDS compliance — pseudonymization of patient data before API calls
-- [ ] Multi-patient memory — persistent context across consultations using ChromaDB
-- [ ] Docker deployment — containerized app ready for Google Cloud Run
+10 User Stories réparties en 5 epics. Détails complets dans
+[`docs/USER_STORIES.md`](docs/USER_STORIES.md) ; diagrammes Mermaid dans
+[`docs/roadmap/`](docs/roadmap/) (vue chronologique et vue par epic).
+
+| Epic | User Stories | Statut |
+|---|---|---|
+| **A — Agent Core** | US-01 Agent LangGraph (3 nœuds) | ✅ Terminé |
+| **B — API & Déploiement** | US-02 Endpoint FastAPI · US-03 Docker + Cloud Run | ✅ Terminé |
+| **C — Data Engineering** | US-08 Logging Supabase · US-09 Dashboard métriques PySpark · US-10 Orchestration batch Airflow | ✅ US-08 · 🔲 US-09, US-10 |
+| **D — Observabilité & Conformité** | US-04 Monitoring LangSmith · US-05 Pseudonymisation RGPD | 🚧 US-04 bloquée · 🔲 US-05 |
+| **E — Expérience patient** | US-06 Mémoire multi-patient ChromaDB · US-07 Transcription audio Whisper | 🔲 À faire |
+
+L'epic C (Data Engineering) est la priorité actuelle : US-10 ajoute un DAG
+Airflow pour orchestrer le pipeline batch nocturne, et US-09 introduit
+PySpark pour le calcul de métriques à l'échelle.

@@ -1,0 +1,579 @@
+diff --git a/README.fr.md b/README.fr.md
+index 9e721e9..7a2fc63 100644
+--- a/README.fr.md
++++ b/README.fr.md
+@@ -63,7 +63,18 @@ Send a POST request to `/summarize` with the following body:
+ 
+ ## Roadmap
+ 
+-- [ ] Audio transcription support (Whisper API) — convert recorded consultations to text automatically
+-- [ ] GDPR / HDS compliance — pseudonymization of patient data before API calls
+-- [ ] Multi-patient memory — persistent context across consultations using ChromaDB
+-- [ ] Docker deployment — containerized app ready for Google Cloud Run
++10 User Stories réparties en 5 epics. Détails complets dans
++[`docs/USER_STORIES.md`](docs/USER_STORIES.md) ; diagrammes Mermaid dans
++[`docs/roadmap/`](docs/roadmap/) (vue chronologique et vue par epic).
++
++| Epic | User Stories | Statut |
++|---|---|---|
++| **A — Agent Core** | US-01 Agent LangGraph (3 nœuds) | ✅ Terminé |
++| **B — API & Déploiement** | US-02 Endpoint FastAPI · US-03 Docker + Cloud Run | ✅ Terminé |
++| **C — Data Engineering** | US-08 Logging Supabase · US-09 Dashboard métriques PySpark · US-10 Orchestration batch Airflow | ✅ US-08 · 🔲 US-09, US-10 |
++| **D — Observabilité & Conformité** | US-04 Monitoring LangSmith · US-05 Pseudonymisation RGPD | 🚧 US-04 bloquée · 🔲 US-05 |
++| **E — Expérience patient** | US-06 Mémoire multi-patient ChromaDB · US-07 Transcription audio Whisper | 🔲 À faire |
++
++L'epic C (Data Engineering) est la priorité actuelle : US-10 ajoute un DAG
++Airflow pour orchestrer le pipeline batch nocturne, et US-09 introduit
++PySpark pour le calcul de métriques à l'échelle.
+diff --git a/README.md b/README.md
+index 689bf76..d44ae3a 100644
+--- a/README.md
++++ b/README.md
+@@ -159,14 +159,22 @@ Content-Type: application/json
+ 
+ ## Roadmap
+ 
+-- [x] LangGraph agent with 3 nodes (extraction, SOAP, verification)
+-- [x] FastAPI endpoint with auto-generated documentation
+-- [x] Docker containerization
+-- [x] Google Cloud Run deployment — public URL live
+-- [ ] Audio transcription (Whisper API) — convert recorded consultations to text
+-- [ ] GDPR / HDS compliance — patient data pseudonymization before API calls
+-- [ ] Multi-patient memory — persistent context across consultations using ChromaDB
+-- [ ] LangSmith monitoring — real-time agent observability
++10 User Stories organized into 5 epics. Full details in
++[`docs/USER_STORIES.md`](docs/USER_STORIES.md); Mermaid diagrams in
++[`docs/roadmap/`](docs/roadmap/) (chronological view and by-epic view).
++
++| Epic | User Stories | Status |
++|---|---|---|
++| **A — Agent Core** | US-01 LangGraph agent (3 nodes) | ✅ Done |
++| **B — API & Deployment** | US-02 FastAPI endpoint · US-03 Docker + Cloud Run | ✅ Done |
++| **C — Data Engineering** | US-08 Supabase logging · US-09 PySpark metrics dashboard · US-10 Airflow batch orchestration | ✅ US-08 · 🔲 US-09, US-10 |
++| **D — Observability & Compliance** | US-04 LangSmith monitoring · US-05 GDPR pseudonymization | 🚧 US-04 blocked · 🔲 US-05 |
++| **E — Patient Experience** | US-06 ChromaDB multi-patient memory · US-07 Whisper audio transcription | 🔲 Todo |
++
++Epic C (Data Engineering) is the current priority: US-10 adds an Airflow DAG
++to orchestrate the nightly batch pipeline, and US-09 introduces PySpark for
++metrics computation at scale — moving the project from "personal project" to
++a hospital-scale demonstrator.
+ 
+ ## License
+ 
+diff --git a/docs/USER_STORIES.md b/docs/USER_STORIES.md
+new file mode 100644
+index 0000000..5193130
+--- /dev/null
++++ b/docs/USER_STORIES.md
+@@ -0,0 +1,156 @@
++# User Stories — Medical Agent Paris
++
++10 User Stories réparties en **5 epics (A → E)**. Statut synchronisé avec le
++Kanban GitHub Projects (`Medical Agent Paris — Roadmap`).
++
++Deux vues Mermaid du roadmap sont disponibles dans `docs/roadmap/` :
++- [`roadmap-chronological.md`](roadmap/roadmap-chronological.md) — ordre de réalisation (US-01 → US-10)
++- [`roadmap-by-epic.md`](roadmap/roadmap-by-epic.md) — vue par epic
++
++---
++
++## Epic A — Agent Core (pipeline LangGraph)
++
++### US-01 — LangGraph agent with 3 nodes ✅ Done
++**En tant que** médecin, **je veux** soumettre des notes de consultation en
++texte libre, **afin d'**obtenir automatiquement un résumé SOAP structuré.
++
++- Nœuds : `extract_entities` → `structure_soap` → `verify_soap`
++- Edge conditionnel qui relance l'extraction si incomplète
++- Stack : LangGraph StateGraph, OpenAI gpt-4o-mini, TypedDict `MedicalState`
++- Estimation : L (> 6h)
++
++---
++
++## Epic B — API & Déploiement
++
++### US-02 — FastAPI endpoint POST /summarize ✅ Done
++**En tant que** développeur, **je veux** exposer l'agent via une API REST,
++**afin d'**intégrer l'agent dans n'importe quelle application médicale.
++
++- Endpoint `POST /summarize`, modèles Pydantic `ConsultationRequest` / `ConsultationResponse`
++- Doc auto-générée sur `/docs`
++- Estimation : S (1-3h)
++
++### US-03 — Docker containerization + Cloud Run deployment ✅ Done
++**En tant que** développeur, **je veux** déployer l'agent sur internet,
++**afin qu'**il soit accessible depuis n'importe quelle application.
++
++- Docker + Google Container Registry, déploiement Cloud Run (europe-west1)
++- URL live : https://medical-agent-paris-756908488363.europe-west1.run.app
++- Estimation : M (3-6h)
++
++---
++
++## Epic C — Data Engineering (persistance, orchestration, analytics à l'échelle)
++
++C'est l'epic qui porte la montée en compétence Data Engineering du projet :
++Supabase pour la persistance, **Airflow** pour l'orchestration batch, **PySpark**
++pour le calcul de métriques à l'échelle.
++
++### US-08 — PostgreSQL logging with Supabase ✅ Done
++**En tant que** développeur, **je veux** sauvegarder chaque consultation
++traitée en base de données, **afin de** conserver un historique exploitable.
++
++- Table `consultations` (id, input_text, soap_summary, verification_ok, created_at)
++- SQLAlchemy + psycopg2-binary, Supabase (EU region), `src/database.py`
++- Estimation : S (1-3h)
++
++### US-09 — Monitoring dashboard — usage metrics 🔲 Todo
++**En tant que** médecin chef, **je veux** voir les métriques d'utilisation de
++l'agent, **afin de** monitorer la qualité des résumés produits.
++
++**Critères d'acceptation**
++- [ ] Nombre de consultations par jour
++- [ ] Taux de `verification_ok`
++- [ ] Temps de réponse moyen
++- [ ] Dashboard accessible sur `/metrics`
++
++**Notes techniques**
++- Requêtes SQL sur la table `consultations` (Supabase) pour les petits volumes
++- **PySpark** pour le calcul des métriques dès que le volume dépasse ce que
++  pandas encaisse confortablement (simulateur : générer un jeu de données
++  synthétique de plusieurs centaines de milliers de lignes pour justifier le
++  passage à Spark en entretien)
++- Nouveau endpoint `GET /metrics` dans `src/api.py`
++- Visualisation avec Chart.js ou simple JSON
++
++**Compétence Data Engineering visée** : agrégations distribuées (PySpark
++DataFrame API, `groupBy`/`agg`), lecture Spark depuis PostgreSQL (JDBC)
++
++- Estimation : M (3-6h)
++
++### US-10 — Batch processing — CSV upload 🔲 Todo
++**En tant que** médecin, **je veux** uploader un fichier CSV de consultations,
++**afin d'**obtenir tous les résumés SOAP en une seule fois.
++
++**Critères d'acceptation**
++- [ ] Endpoint `POST /batch` accepte un fichier CSV
++- [ ] Traite chaque ligne comme une consultation
++- [ ] Retourne un CSV avec les SOAP générés
++- [ ] Gère les erreurs ligne par ligne sans bloquer le batch
++- [ ] **Orchestration Airflow** : un DAG déclenche le traitement batch
++      automatiquement (ex. tous les soirs à minuit) au lieu d'un appel manuel
++
++**Notes techniques**
++- FastAPI `UploadFile` pour réception du CSV, pandas pour lecture/écriture
++- Logging de chaque ligne dans Supabase
++- **Apache Airflow** : DAG simple (`PythonOperator` ou `BashOperator`) qui
++  appelle `/batch` sur un scheduler quotidien ; artefact concret et lisible
++  sur un CV (`dags/batch_consultations_dag.py`)
++
++**Compétence Data Engineering visée** : écriture d'un DAG Airflow, scheduling,
++gestion des erreurs/retries au niveau orchestration (pas seulement applicatif)
++
++- Estimation : M (3-6h)
++
++---
++
++## Epic D — Observabilité & Conformité
++
++### US-04 — LangSmith monitoring — real-time agent observability 🚧 Blocked
++**En tant que** développeur, **je veux** visualiser chaque étape de l'agent en
++temps réel, **afin de** déboguer et optimiser les performances.
++
++- `LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`
++- Bloqué : erreur 403 persistante sur le Personal Access Token LangSmith
++- Estimation : S (1-3h)
++
++### US-05 — GDPR compliance — patient data pseudonymization 🔲 Todo
++**En tant que** développeur, **je veux** pseudonymiser les données patient
++avant tout appel API externe, **afin d'**être conforme RGPD et HDS.
++
++- Lib : `presidio-analyzer` + `presidio-anonymizer` (Microsoft)
++- Pseudonymisation appliquée avant l'appel OpenAI, dans `extract_entities`
++- Champ `anonymization_report` ajouté à `ConsultationResponse`
++- Estimation : M (3-6h)
++
++---
++
++## Epic E — Expérience patient (mémoire & entrées multimodales)
++
++### US-06 — Multi-patient memory with ChromaDB 🔲 Todo
++**En tant que** médecin, **je veux** interroger l'historique de consultations
++d'un patient, **afin de** contextualiser le nouveau résumé avec ses antécédents.
++
++- Collection ChromaDB par `patient_id`, RAG sur historique avant `structure_soap`
++- Isolation stricte des données par patient
++- Estimation : L (> 6h)
++
++### US-07 — Audio transcription support via Whisper API 🔲 Todo
++**En tant que** médecin, **je veux** envoyer un fichier audio de consultation,
++**afin d'**obtenir un résumé SOAP sans avoir à taper le texte.
++
++- `openai.audio.transcriptions.create()`, endpoint `POST /transcribe`
++- Le texte transcrit est automatiquement envoyé à `/summarize`
++- Estimation : L (> 6h)
++
++---
++
++## Vue d'ensemble par statut
++
++| Statut | US |
++|---|---|
++| ✅ Done | US-01, US-02, US-03, US-08 |
++| 🔲 Todo | US-05, US-06, US-07, US-09, US-10 |
++| 🚧 Blocked | US-04 |
+diff --git a/docs/roadmap/roadmap-by-epic.md b/docs/roadmap/roadmap-by-epic.md
+new file mode 100644
+index 0000000..0231b7e
+--- /dev/null
++++ b/docs/roadmap/roadmap-by-epic.md
+@@ -0,0 +1,44 @@
++# Roadmap — Vue par epic
++
++```mermaid
++graph TB
++    subgraph EpicA["Epic A — Agent Core"]
++        US01["US-01<br/>LangGraph agent<br/>3 nodes"]:::done
++    end
++
++    subgraph EpicB["Epic B — API &amp; Déploiement"]
++        US02["US-02<br/>FastAPI<br/>POST /summarize"]:::done
++        US03["US-03<br/>Docker +<br/>Cloud Run"]:::done
++    end
++
++    subgraph EpicC["Epic C — Data Engineering"]
++        US08["US-08<br/>Supabase<br/>PostgreSQL logging"]:::done
++        US09["US-09<br/>PySpark<br/>metrics dashboard"]:::todo
++        US10["US-10<br/>Airflow<br/>batch CSV"]:::todo
++    end
++
++    subgraph EpicD["Epic D — Observabilité &amp; Conformité"]
++        US04["US-04<br/>LangSmith<br/>monitoring"]:::blocked
++        US05["US-05<br/>GDPR<br/>pseudonymization"]:::todo
++    end
++
++    subgraph EpicE["Epic E — Expérience patient"]
++        US06["US-06<br/>ChromaDB<br/>multi-patient memory"]:::todo
++        US07["US-07<br/>Whisper<br/>audio transcription"]:::todo
++    end
++
++    EpicA --> EpicB --> EpicC
++    EpicB --> EpicD
++    EpicC --> EpicE
++
++    classDef done fill:#2e7d32,stroke:#1b5e20,color:#fff
++    classDef todo fill:#616161,stroke:#424242,color:#fff
++    classDef blocked fill:#c62828,stroke:#8e0000,color:#fff
++```
++
++**Epic C — Data Engineering** est l'epic à prioriser pour la montée en
++compétences visée (Airflow via US-10, PySpark via US-09) : c'est celui qui
++transforme le projet d'un "projet perso" en démonstrateur "à l'échelle
++hospitalière" sur un CV Data Engineer.
++
++**Légende** : 🟢 Done · ⚪ Todo · 🔴 Blocked
+diff --git a/docs/roadmap/roadmap-chronological.md b/docs/roadmap/roadmap-chronological.md
+new file mode 100644
+index 0000000..988a511
+--- /dev/null
++++ b/docs/roadmap/roadmap-chronological.md
+@@ -0,0 +1,25 @@
++# Roadmap — Vue chronologique
++
++Ordre de réalisation des User Stories, US-01 → US-10.
++
++```mermaid
++graph LR
++    US01["US-01<br/>LangGraph agent<br/>3 nodes"]:::done
++    US02["US-02<br/>FastAPI<br/>POST /summarize"]:::done
++    US03["US-03<br/>Docker +<br/>Cloud Run"]:::done
++    US08["US-08<br/>Supabase<br/>PostgreSQL logging"]:::done
++    US04["US-04<br/>LangSmith<br/>monitoring"]:::blocked
++    US05["US-05<br/>GDPR<br/>pseudonymization"]:::todo
++    US06["US-06<br/>ChromaDB<br/>multi-patient memory"]:::todo
++    US07["US-07<br/>Whisper<br/>audio transcription"]:::todo
++    US09["US-09<br/>PySpark<br/>metrics dashboard"]:::todo
++    US10["US-10<br/>Airflow<br/>batch CSV"]:::todo
++
++    US01 --> US02 --> US03 --> US08 --> US04 --> US05 --> US06 --> US07 --> US09 --> US10
++
++    classDef done fill:#2e7d32,stroke:#1b5e20,color:#fff
++    classDef todo fill:#616161,stroke:#424242,color:#fff
++    classDef blocked fill:#c62828,stroke:#8e0000,color:#fff
++```
++
++**Légende** : 🟢 Done · ⚪ Todo · 🔴 Blocked (US-04 — erreur 403 sur le token LangSmith)
+diff --git a/scripts/apply_epic_labels.py b/scripts/apply_epic_labels.py
+new file mode 100644
+index 0000000..8852b59
+--- /dev/null
++++ b/scripts/apply_epic_labels.py
+@@ -0,0 +1,139 @@
++"""
++Patches the 10 existing GitHub Issues with epic labels, and refreshes the
++body of US-09 and US-10 with the Airflow/PySpark Data Engineering notes.
++
++Run this INSTEAD of create_github_issues.py — the issues already exist,
++this only updates labels and the two bodies that changed.
++
++Usage:
++    python scripts/apply_epic_labels.py
++
++Environment variables (.env): same as create_github_issues.py
++"""
++
++import os
++import requests
++from dotenv import load_dotenv
++
++load_dotenv()
++
++GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
++GITHUB_OWNER = os.getenv("GITHUB_OWNER", "Indsyra")
++GITHUB_REPO = os.getenv("GITHUB_REPO", "medical-agent-paris")
++
++HEADERS = {
++    "Authorization": f"Bearer {GITHUB_TOKEN}",
++    "Accept": "application/vnd.github+json",
++    "X-GitHub-Api-Version": "2022-11-28",
++}
++
++BASE_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
++
++EPIC_LABELS = {
++    "epic-a-agent-core": "5319e7",
++    "epic-b-api-deployment": "0e8a16",
++    "epic-c-data-engineering": "fbca04",
++    "epic-d-observability-compliance": "1d76db",
++    "epic-e-patient-experience": "c5def5",
++}
++
++# issue number -> extra labels to add (kept + existing ones, GitHub PATCH
++# on /labels replaces the whole set, so we re-add "enhancement"/"blocked" too)
++ISSUE_LABELS = {
++    1: ["enhancement", "epic-a-agent-core"],                       # US-01
++    2: ["enhancement", "epic-b-api-deployment"],                   # US-02
++    3: ["enhancement", "epic-b-api-deployment"],                   # US-03
++    4: ["enhancement", "epic-c-data-engineering"],                 # US-08
++    5: ["enhancement", "blocked", "epic-d-observability-compliance"],  # US-04
++    6: ["enhancement", "epic-d-observability-compliance"],         # US-05
++    7: ["enhancement", "epic-e-patient-experience"],               # US-06
++    8: ["enhancement", "epic-e-patient-experience"],               # US-07
++    9: ["enhancement", "epic-c-data-engineering"],                 # US-09
++    10: ["enhancement", "epic-c-data-engineering"],                # US-10
++}
++
++US09_BODY = """## User Story
++En tant que **médecin chef**,
++je veux **voir les métriques d'utilisation de l'agent**,
++afin de **monitorer la qualité des résumés produits**.
++
++## Critères d'acceptation
++- [ ] Nombre de consultations par jour
++- [ ] Taux de verification_ok
++- [ ] Temps de réponse moyen
++- [ ] Dashboard accessible sur `/metrics`
++
++## Notes techniques
++- Requêtes SQL sur table consultations (Supabase) pour les petits volumes
++- PySpark pour le calcul des métriques dès que le volume dépasse ce que
++  pandas encaisse confortablement (JDBC vers PostgreSQL, DataFrame API,
++  groupBy/agg) — objectif : montée en compétence Data Engineering
++- Nouveau endpoint GET /metrics dans src/api.py
++- Visualisation avec Chart.js ou simple JSON
++
++## Estimation
++- [ ] M (3-6h)"""
++
++US10_BODY = """## User Story
++En tant que **médecin**,
++je veux **uploader un fichier CSV de consultations**,
++afin d'**obtenir tous les résumés SOAP en une seule fois**.
++
++## Critères d'acceptation
++- [ ] Endpoint `POST /batch` accepte un fichier CSV
++- [ ] Traite chaque ligne comme une consultation
++- [ ] Retourne un CSV avec les SOAP générés
++- [ ] Gère les erreurs ligne par ligne sans bloquer le batch
++- [ ] Un DAG Airflow orchestre le traitement batch automatiquement (ex.
++      tous les soirs à minuit) au lieu d'un déclenchement manuel
++
++## Notes techniques
++- FastAPI UploadFile pour reception du CSV
++- pandas pour lecture et écriture CSV
++- Logging de chaque ligne dans Supabase
++- Apache Airflow : DAG (`dags/batch_consultations_dag.py`) qui appelle
++  `/batch` sur un scheduler quotidien — objectif : montée en compétence
++  Data Engineering (orchestration, scheduling, retries)
++
++## Estimation
++- [ ] M (3-6h)"""
++
++
++def create_label(name: str, color: str) -> None:
++    response = requests.post(
++        f"{BASE_URL}/labels", json={"name": name, "color": color}, headers=HEADERS
++    )
++    if response.status_code == 201:
++        print(f"  🏷️  Label '{name}' created")
++    elif response.status_code == 422:
++        print(f"  🏷️  Label '{name}' already exists")
++    else:
++        print(f"  ⚠️  Label '{name}' — unexpected status {response.status_code}")
++
++
++def patch_issue(number: int, labels: list[str], body: str | None = None) -> None:
++    payload: dict = {"labels": labels}
++    if body is not None:
++        payload["body"] = body
++    response = requests.patch(
++        f"{BASE_URL}/issues/{number}", json=payload, headers=HEADERS
++    )
++    response.raise_for_status()
++    print(f"  ✅ Issue #{number} updated (labels{' + body' if body else ''})")
++
++
++def main() -> None:
++    print("Creating epic labels...")
++    for name, color in EPIC_LABELS.items():
++        create_label(name, color)
++
++    print("\nPatching issues...")
++    for number, labels in ISSUE_LABELS.items():
++        body = US09_BODY if number == 9 else US10_BODY if number == 10 else None
++        patch_issue(number, labels, body)
++
++    print(f"\nDone! View issues at: https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/issues")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/create_github_issues.py b/scripts/create_github_issues.py
+index 4f0774c..dfa61a6 100644
+--- a/scripts/create_github_issues.py
++++ b/scripts/create_github_issues.py
+@@ -54,7 +54,7 @@ afin d'**obtenir automatiquement un résumé SOAP structuré**.
+ 
+ ## Estimation
+ - [x] L (> 6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-a-agent-core"],
+         "state": "closed"
+     },
+     {
+@@ -77,7 +77,7 @@ afin d'**intégrer l'agent dans n'importe quelle application médicale**.
+ 
+ ## Estimation
+ - [x] S (1-3h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-b-api-deployment"],
+         "state": "closed"
+     },
+     {
+@@ -100,7 +100,7 @@ afin qu'**il soit accessible depuis n'importe quelle application**.
+ 
+ ## Estimation
+ - [x] M (3-6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-b-api-deployment"],
+         "state": "closed"
+     },
+     {
+@@ -122,7 +122,7 @@ afin de **conserver un historique exploitable**.
+ 
+ ## Estimation
+ - [x] S (1-3h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-c-data-engineering"],
+         "state": "closed"
+     },
+     # ── OPEN ───────────────────────────────────────────────────────────────
+@@ -146,7 +146,7 @@ afin de **déboguer et optimiser les performances**.
+ 
+ ## Estimation
+ - [ ] S (1-3h)""",
+-        "labels": ["enhancement", "blocked"],
++        "labels": ["enhancement", "blocked", "epic-d-observability-compliance"],
+         "state": "open"
+     },
+     {
+@@ -169,7 +169,7 @@ afin d'**être conforme RGPD et HDS**.
+ 
+ ## Estimation
+ - [ ] M (3-6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-d-observability-compliance"],
+         "state": "open"
+     },
+     {
+@@ -192,7 +192,7 @@ afin de **contextualiser le nouveau résumé avec ses antécédents**.
+ 
+ ## Estimation
+ - [ ] L (> 6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-e-patient-experience"],
+         "state": "open"
+     },
+     {
+@@ -215,7 +215,7 @@ afin d'**obtenir un résumé SOAP sans avoir à taper le texte**.
+ 
+ ## Estimation
+ - [ ] L (> 6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-e-patient-experience"],
+         "state": "open"
+     },
+     {
+@@ -232,13 +232,16 @@ afin de **monitorer la qualité des résumés produits**.
+ - [ ] Dashboard accessible sur `/metrics`
+ 
+ ## Notes techniques
+-- Requêtes SQL sur table consultations (Supabase)
++- Requêtes SQL sur table consultations (Supabase) pour les petits volumes
++- PySpark pour le calcul des métriques dès que le volume dépasse ce que
++  pandas encaisse confortablement (JDBC vers PostgreSQL, DataFrame API,
++  groupBy/agg) — objectif : montée en compétence Data Engineering
+ - Nouveau endpoint GET /metrics dans src/api.py
+ - Visualisation avec Chart.js ou simple JSON
+ 
+ ## Estimation
+ - [ ] M (3-6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-c-data-engineering"],
+         "state": "open"
+     },
+     {
+@@ -253,15 +256,20 @@ afin d'**obtenir tous les résumés SOAP en une seule fois**.
+ - [ ] Traite chaque ligne comme une consultation
+ - [ ] Retourne un CSV avec les SOAP générés
+ - [ ] Gère les erreurs ligne par ligne sans bloquer le batch
++- [ ] Un DAG Airflow orchestre le traitement batch automatiquement (ex.
++      tous les soirs à minuit) au lieu d'un déclenchement manuel
+ 
+ ## Notes techniques
+ - FastAPI UploadFile pour reception du CSV
+ - pandas pour lecture et écriture CSV
+ - Logging de chaque ligne dans Supabase
++- Apache Airflow : DAG (`dags/batch_consultations_dag.py`) qui appelle
++  `/batch` sur un scheduler quotidien — objectif : montée en compétence
++  Data Engineering (orchestration, scheduling, retries)
+ 
+ ## Estimation
+ - [ ] M (3-6h)""",
+-        "labels": ["enhancement"],
++        "labels": ["enhancement", "epic-c-data-engineering"],
+         "state": "open"
+     }
+ ]
+@@ -316,6 +324,11 @@ def main() -> None:
+     print("Creating labels...")
+     create_label("enhancement", "a2eeef")
+     create_label("blocked", "d93f0b")
++    create_label("epic-a-agent-core", "5319e7")
++    create_label("epic-b-api-deployment", "0e8a16")
++    create_label("epic-c-data-engineering", "fbca04")
++    create_label("epic-d-observability-compliance", "1d76db")
++    create_label("epic-e-patient-experience", "c5def5")
+     print()
+ 
+     # Create issues
