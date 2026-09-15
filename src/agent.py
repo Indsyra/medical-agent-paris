@@ -89,17 +89,6 @@ def check_extraction(state: MedicalState):
 
 def structure_soap(state: MedicalState):
     """Generate the SOAP note.
-
-    Design decision (v2): the output language follows the detected source
-    language (`source_language` field, extracted by `extract_entities`). A
-    first attempt at this mechanism failed with gpt-4o-mini, which kept
-    defaulting to French whenever the rest of the prompt was
-    French-dominant — we temporarily fell back to an "always French" mode
-    for simplicity. This dynamic version is being retried with
-    gpt-4.1-mini (better instruction-following), keeping the language
-    directive on the very first line of the prompt to maximize salience.
-    If this fails again, fall back to "always French" mode (see git
-    history).
     """
     entities = state["entities"]
     source_language = entities.get("source_language")
