@@ -8,6 +8,9 @@ hit and fixed manually during development:
 
 - vital signs silently dropped during extraction (US: structured output)
 - the SOAP note language not matching the detected source language
+- the patient identification header and explicit vital-sign listing
+  silently disappearing once the "no preamble" rule started being
+  followed literally
 - numeric hallucination guardrails staying wired into the prompt
 
 Run with: pytest tests/ -v
@@ -21,38 +24,10 @@ from src.agent import (
     ExtractedEntities,
     VitalSigns,
     check_extraction,
-    detect_language,
     extract_entities,
     structure_soap,
     verify_soap,
 )
-
-
-# ---------------------------------------------------------------------------
-# detect_language — deterministic, no LLM involved
-# ---------------------------------------------------------------------------
-
-class TestDetectLanguage:
-    def test_french_text_detected_as_french(self):
-        text = "Jean Dupont, 45 ans. Douleur thoracique ce matin. Fièvre 38.2°C."
-        assert detect_language(text) == "French"
-
-    def test_english_text_detected_as_english(self):
-        text = (
-            "John Smith, 52 years old. Sudden onset shortness of breath and "
-            "dizziness since this morning."
-        )
-        assert detect_language(text) == "English"
-
-    def test_other_language_falls_back_to_english(self):
-        # Spanish — neither of our two supported output languages.
-        text = "Juan Perez, 52 años. Dolor torácico desde esta mañana."
-        assert detect_language(text) == "English"
-
-    def test_empty_or_undetectable_text_falls_back_to_english(self):
-        assert detect_language("") == "English"
-        assert detect_language("   ") == "English"
-        assert detect_language("123 456") == "English"
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +60,7 @@ class TestExtractEntities:
         fake_result = ExtractedEntities(
             patient="John Smith",
             age="52",
+            source_language="english",
             symptoms=["shortness of breath", "dizziness"],
             medical_history=["hypertension"],
             vital_signs=VitalSigns(
@@ -127,55 +103,86 @@ class TestExtractEntities:
 # ---------------------------------------------------------------------------
 
 class TestStructureSoap:
-    """These tests assert on the prompt sent to the LLM, not on what the
-    LLM would actually do with it — we can't test LLM compliance offline.
-    What we CAN guarantee deterministically is that structure_soap builds
-    the correct instruction and includes all available data, which is the
-    part of the language/vitals bugs that was under our control."""
+    """These tests assert on the messages sent to the LLM, not on what the
+    LLM would actually do with them — we can't test LLM compliance
+    offline. What we CAN guarantee deterministically is that structure_soap
+    builds the correct instructions and includes all available data, which
+    is the part of the recurring language / vitals / patient-header bugs
+    that was under our control.
 
-    def _mock_llm(self, monkeypatch, response_text="S - Subjective: ...\nO - Objective: ...\nA - Assessment: ...\nP - Plan: ..."):
+    structure_soap now calls llm.invoke([SystemMessage, HumanMessage]) —
+    the language directive lives in the SystemMessage, everything else in
+    the HumanMessage. Tests inspect both.
+    """
+
+    def _mock_llm(self, monkeypatch, response_text="Patient: ...\nAge: ...\n\nS - Subjective: ...\nO - Objective: ...\nA - Assessment: ...\nP - Plan: ..."):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = MagicMock(content=response_text)
         monkeypatch.setattr("src.agent.llm", mock_llm)
         return mock_llm
 
+    @staticmethod
+    def _sent_messages(mock_llm):
+        messages = mock_llm.invoke.call_args[0][0]
+        system_content = messages[0].content
+        human_content = messages[1].content
+        return system_content, human_content
+
     def test_prompt_targets_french_for_french_source(self, monkeypatch):
         mock_llm = self._mock_llm(monkeypatch)
         state = {
             "raw_text": "Jean Dupont, 45 ans. Douleur thoracique ce matin.",
-            "entities": {"symptoms": ["douleur thoracique"], "vital_signs": {}},
+            "entities": {"source_language": "french", "symptoms": ["douleur thoracique"], "vital_signs": {}},
             "soap_summary": "",
             "verification_ok": False,
         }
 
         structure_soap(state)
 
-        prompt_sent = mock_llm.invoke.call_args[0][0]
-        assert "Write your ENTIRE response in French" in prompt_sent
-        assert "Write your ENTIRE response in English" not in prompt_sent
+        system_content, human_content = self._sent_messages(mock_llm)
+        assert "MUST be in French" in system_content
+        assert "MUST be in English" not in system_content
+        assert "required output language is French" in human_content
 
     def test_prompt_targets_english_for_english_source(self, monkeypatch):
         mock_llm = self._mock_llm(monkeypatch)
         state = {
             "raw_text": "John Smith, 52 years old. Shortness of breath.",
-            "entities": {"symptoms": ["shortness of breath"], "vital_signs": {}},
+            "entities": {"source_language": "english", "symptoms": ["shortness of breath"], "vital_signs": {}},
             "soap_summary": "",
             "verification_ok": False,
         }
 
         structure_soap(state)
 
-        prompt_sent = mock_llm.invoke.call_args[0][0]
-        assert "Write your ENTIRE response in English" in prompt_sent
-        assert "Write your ENTIRE response in French" not in prompt_sent
+        system_content, human_content = self._sent_messages(mock_llm)
+        assert "MUST be in English" in system_content
+        assert "MUST be in French" not in system_content
+        assert "required output language is English" in human_content
+
+    def test_unrecognized_source_language_falls_back_to_english(self, monkeypatch):
+        mock_llm = self._mock_llm(monkeypatch)
+        state = {
+            "raw_text": "Juan Perez, 52 años.",
+            "entities": {"source_language": "other", "symptoms": ["dolor"], "vital_signs": {}},
+            "soap_summary": "",
+            "verification_ok": False,
+        }
+
+        structure_soap(state)
+
+        system_content, _ = self._sent_messages(mock_llm)
+        assert "MUST be in English" in system_content
 
     def test_prompt_includes_all_provided_vital_signs(self, monkeypatch):
         """Regression test for the omission bug: every non-empty vital
-        sign must appear in the JSON blob injected into the prompt."""
+        sign must appear in the JSON blob injected into the human message,
+        AND the instruction to list each one explicitly must be present."""
         mock_llm = self._mock_llm(monkeypatch)
         state = {
             "raw_text": "John Smith, 52 years old.",
             "entities": {
+                "source_language": "english",
                 "symptoms": ["dizziness"],
                 "vital_signs": {
                     "blood_pressure": "150/95 mmHg",
@@ -190,10 +197,30 @@ class TestStructureSoap:
 
         structure_soap(state)
 
-        prompt_sent = mock_llm.invoke.call_args[0][0]
-        assert "150/95 mmHg" in prompt_sent
-        assert "110 bpm" in prompt_sent
-        assert "94%" in prompt_sent
+        _, human_content = self._sent_messages(mock_llm)
+        assert "150/95 mmHg" in human_content
+        assert "110 bpm" in human_content
+        assert "94%" in human_content
+        assert "EXPLICITLY list each vital sign" in human_content
+
+    def test_prompt_requires_patient_header(self, monkeypatch):
+        """Regression test: the patient identification header (name, age)
+        must be explicitly required, not left to the model's discretion —
+        this is what silently disappeared when the 'no preamble' rule
+        started being followed literally."""
+        mock_llm = self._mock_llm(monkeypatch)
+        state = {
+            "raw_text": "John Smith, 52 years old.",
+            "entities": {"source_language": "english", "symptoms": ["dizziness"], "vital_signs": {}},
+            "soap_summary": "",
+            "verification_ok": False,
+        }
+
+        structure_soap(state)
+
+        _, human_content = self._sent_messages(mock_llm)
+        assert "patient identification header" in human_content
+        assert "REQUIRED" in human_content
 
     def test_prompt_forbids_inventing_numeric_values(self, monkeypatch):
         """Regression test for the hallucinated-blood-pressure bug: the
@@ -201,15 +228,15 @@ class TestStructureSoap:
         mock_llm = self._mock_llm(monkeypatch)
         state = {
             "raw_text": "John Smith, 52 years old.",
-            "entities": {"symptoms": ["dizziness"], "vital_signs": {}},
+            "entities": {"source_language": "english", "symptoms": ["dizziness"], "vital_signs": {}},
             "soap_summary": "",
             "verification_ok": False,
         }
 
         structure_soap(state)
 
-        prompt_sent = mock_llm.invoke.call_args[0][0]
-        assert "Do not invent or alter ANY numeric value" in prompt_sent
+        _, human_content = self._sent_messages(mock_llm)
+        assert "Do not invent or alter ANY numeric value" in human_content
 
 
 # ---------------------------------------------------------------------------
