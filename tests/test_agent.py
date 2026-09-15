@@ -12,6 +12,9 @@ hit and fixed manually during development:
   silently disappearing once the "no preamble" rule started being
   followed literally
 - numeric hallucination guardrails staying wired into the prompt
+- extract_entities/check_extraction retrying forever (and burning API
+  calls) on a text with no explicit symptoms — capped via
+  MAX_EXTRACTION_ATTEMPTS
 
 Run with: pytest tests/ -v
 """
@@ -21,6 +24,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from agent import (
+    MAX_EXTRACTION_ATTEMPTS,
     ExtractedEntities,
     VitalSigns,
     check_extraction,
@@ -46,6 +50,19 @@ class TestCheckExtraction:
     def test_present_symptoms_moves_to_structure_soap(self):
         state = {"entities": {"symptoms": ["chest pain"]}}
         assert check_extraction(state) == "structure_soap"
+
+    def test_retry_cap_prevents_infinite_loop(self):
+        """Regression test: a text with genuinely no explicit symptoms
+        (e.g. a routine check-up note) used to make check_extraction retry
+        extract_entities forever, calling the OpenAI API on every attempt
+        with no upper bound. After MAX_EXTRACTION_ATTEMPTS, it must give up
+        and proceed to structure_soap instead of looping indefinitely."""
+        state = {"entities": {"symptoms": []}, "extraction_attempts": MAX_EXTRACTION_ATTEMPTS}
+        assert check_extraction(state) == "structure_soap"
+
+    def test_retry_cap_not_yet_reached_still_retries(self):
+        state = {"entities": {"symptoms": []}, "extraction_attempts": MAX_EXTRACTION_ATTEMPTS - 1}
+        assert check_extraction(state) == "extract_entities"
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +91,7 @@ class TestExtractEntities:
         )
         mock_extraction_llm = MagicMock()
         mock_extraction_llm.invoke.return_value = fake_result
-        monkeypatch.setattr("src.agent.extraction_llm", mock_extraction_llm)
+        monkeypatch.setattr("agent.extraction_llm", mock_extraction_llm)
 
         state = {"raw_text": "John Smith, 52 years old...", "entities": {},
                   "soap_summary": "", "verification_ok": False}
@@ -89,7 +106,7 @@ class TestExtractEntities:
     def test_extraction_failure_returns_empty_entities(self, monkeypatch):
         mock_extraction_llm = MagicMock()
         mock_extraction_llm.invoke.side_effect = ValueError("bad response")
-        monkeypatch.setattr("src.agent.extraction_llm", mock_extraction_llm)
+        monkeypatch.setattr("agent.extraction_llm", mock_extraction_llm)
 
         state = {"raw_text": "some text", "entities": {},
                   "soap_summary": "", "verification_ok": False}
@@ -118,7 +135,7 @@ class TestStructureSoap:
     def _mock_llm(self, monkeypatch, response_text="Patient: ...\nAge: ...\n\nS - Subjective: ...\nO - Objective: ...\nA - Assessment: ...\nP - Plan: ..."):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = MagicMock(content=response_text)
-        monkeypatch.setattr("src.agent.llm", mock_llm)
+        monkeypatch.setattr("agent.llm", mock_llm)
         return mock_llm
 
     @staticmethod
@@ -247,7 +264,7 @@ class TestVerifySoap:
     def test_ok_response_marks_verified(self, monkeypatch):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = MagicMock(content="OK")
-        monkeypatch.setattr("src.agent.llm", mock_llm)
+        monkeypatch.setattr("agent.llm", mock_llm)
 
         state = {"raw_text": "", "entities": {}, "soap_summary": "S...O...A...P...",
                   "verification_ok": False}
@@ -259,7 +276,7 @@ class TestVerifySoap:
     def test_not_ok_response_appends_warning(self, monkeypatch):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = MagicMock(content="NOT OK")
-        monkeypatch.setattr("src.agent.llm", mock_llm)
+        monkeypatch.setattr("agent.llm", mock_llm)
 
         state = {"raw_text": "", "entities": {}, "soap_summary": "S...O...",
                   "verification_ok": False}

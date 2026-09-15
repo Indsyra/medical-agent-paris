@@ -15,11 +15,14 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
 
+MAX_EXTRACTION_ATTEMPTS = 3
+
 class MedicalState(TypedDict):
     raw_text: str
     entities: dict
     soap_summary: str
     verification_ok: bool
+    extraction_attempts: int
 
 
 class VitalSigns(BaseModel):
@@ -53,6 +56,9 @@ LANGUAGE_LABELS = {
 
 
 def extract_entities(state: MedicalState):
+    attempt = state.get("extraction_attempts", 0) + 1
+    logger.debug(f"extract_entities attempt {attempt}/{MAX_EXTRACTION_ATTEMPTS}")
+
     prompt = f"""Extract the medical information from this consultation note.
 
 Strict rules:
@@ -76,14 +82,24 @@ Text: {state["raw_text"]}"""
         logger.error(f"Entity extraction failed: {e}")
         entities = {}
 
-    return {"entities": entities}
+    return {"entities": entities, "extraction_attempts": attempt}
 
 
 def check_extraction(state: MedicalState):
     entities = state["entities"]
-    if not entities or not entities.get("symptoms"):
-        return "extract_entities"
-    return "structure_soap"
+    attempts = state.get("extraction_attempts", 0)
+
+    if entities and entities.get("symptoms"):
+        return "structure_soap"
+
+    if attempts >= MAX_EXTRACTION_ATTEMPTS:
+        logger.warning(
+            f"No symptoms found after {attempts} attempts — proceeding to "
+            "structure_soap anyway instead of retrying indefinitely."
+        )
+        return "structure_soap"
+
+    return "extract_entities"
 
 
 def structure_soap(state: MedicalState):
