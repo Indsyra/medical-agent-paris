@@ -1,7 +1,20 @@
 import streamlit as st
 import requests
+import logging
+import os
 
-API_URL = "https://medical-agent-paris-756908488363.europe-west1.run.app"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    force=True,
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+API_URL = os.getenv(
+    "MEDICAL_AGENT_API_URL",
+    "http://127.0.0.1:8000",
+)
 
 CHAT_ENDPOINT = f"{API_URL}/summarize"
 
@@ -49,6 +62,7 @@ for msg in st.session_state.messages:
         st.write(msg["content"])
 
 def process_consultation(text: str) -> None:
+    logger.info("Sending consultation to %s", CHAT_ENDPOINT)
     st.session_state.messages.append({"role": "user", "content": text})
     with st.chat_message("user"):
         st.write(text)
@@ -63,13 +77,16 @@ def process_consultation(text: str) -> None:
                     timeout=30,
                 )
             except requests.RequestException as e:
+                logger.exception("Unable to contact the medical agent API")
                 assistant_message = f"Network error: {e}"
                 st.error(f"Error during API request: {e}")
             else:
+                logger.info("Medical agent API responded with status %s", response.status_code)
                 if response.status_code == 200:
                     data = response.json()
                     soap_summary = data.get("soap_summary", "No response from the assistant.")
                     verification_ok = data.get("verification_ok", False)
+                    logger.info("SOAP response received; verification_ok=%s", verification_ok)
                     badge = "Verified" if verification_ok else "Verification incomplete"
                     assistant_message = f"{soap_summary}\n\nStatus: *{badge}*"
                 else:
@@ -77,6 +94,7 @@ def process_consultation(text: str) -> None:
                         detail = response.json().get("detail", "")
                     except ValueError:
                         detail = response.text
+                    logger.error("Medical agent API error: %s", detail)
                     assistant_message = f"API error {response.status_code}: {detail}."
                     st.error(f"API error {response.status_code}: {detail}.")
         st.session_state.messages.append({"role": "assistant", "content": assistant_message})
