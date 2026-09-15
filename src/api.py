@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from src.agent import agent
-from src.database import SessionLocal, Consultation, init_db
+from agent import agent
+from database import SessionLocal, Consultation, init_db
 import uuid
 
 class ConsultationRequest(BaseModel):

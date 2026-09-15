@@ -37,7 +37,8 @@ cp .env.example .env
 
 ### Launch
 ```bash
-uvicorn src.api:app --reload
+cd src
+uvicorn api:app --reload
 ```
 
 Open http://127.0.0.1:8000/docs to test API interactively.

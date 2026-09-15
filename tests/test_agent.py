@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.agent import (
+from agent import (
     ExtractedEntities,
     VitalSigns,
     check_extraction,

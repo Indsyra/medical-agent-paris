@@ -66,7 +66,8 @@ OPENAI_API_KEY=your_openai_key_here
 ### Run locally
 
 ```bash
-uvicorn src.api:app --reload
+cd src
+uvicorn api:app --reload
 ```
 
 Open http://127.0.0.1:8000/docs to test the API interactively.
